@@ -1,0 +1,134 @@
+import ncPirate, curses, traceback, sys
+
+
+def main(stdscr):
+    curses.curs_set(0) 
+    global screen
+    global height, width
+    height, width = stdscr.getmaxyx()
+    global results
+    screen = stdscr.subwin( height - 2, width - 1, 0, 0)
+    draw_topbar()    
+
+    results = []
+    select_index = 0
+    if len(sys.argv) > 1:
+        results = ncPirate.pSearch(argv[1])
+    else:
+        results = new_search()
+
+    screen.refresh()
+    list_size = len(results)
+    select_index = 0
+    while True:
+        draw_list( select_index )
+        select_index = handle_input( select_index, list_size )
+        screen.refresh()
+
+def handle_input( pos, list_size ):
+    
+    c = stdscr.getch()
+    
+    if c == 258: # Down Arrow
+        if pos < list_size:
+            pos += 1
+        else:
+            pos = 0
+    elif c == 259: #Up arrow
+        if pos > 0:
+            pos -= 1
+        else:
+            pos = list_size
+    elif c == curses.KEY_ENTER:
+        open_torrent( pos )
+    elif c == ord('n') or c == ord('N'):
+        global results
+        results = new_search()
+        pos = 0
+        return pos
+    elif c == curses.KEY_RESIZE:
+        resize_screen()
+    elif c == ord('q') or c == ord('Q'):
+        sys.exit() 
+
+    return pos
+
+
+def new_search():
+    curses.echo()
+    begin_x = (width // 2) - (width // 4); begin_y = (height//2) 
+    b_height = 5; b_width = 40
+    search_window = curses.newwin( b_height, b_width, begin_y, begin_x)
+    search_window.box()
+    search_window.addstr(1, 2, "Enter Search Query: (30 char Max)")
+    search_window.refresh()
+
+    target = search_window.getstr(3, 2, 30)
+    torrents = ncPirate.pSearch(target)
+    del search_window
+    curses.noecho()
+
+    return torrents
+    
+
+def draw_topbar():
+    
+    screen.hline(2, 1, curses.ACS_HLINE, width - 3 )
+    offset = 2
+    new_option = "New Search"
+    quit_option = "Quit"
+    
+    screen.box()
+    screen.addstr(1, offset, new_option[0], curses.A_BOLD | curses.A_UNDERLINE)
+    screen.addstr(1, offset + 1, new_option[1:], curses.A_NORMAL)
+
+    offset += len(new_option) + 5
+
+    screen.addstr(1, offset, quit_option[0], curses.A_BOLD | curses.A_UNDERLINE)
+    screen.addstr(1, offset + 1, quit_option[1:], curses.A_NORMAL )
+    
+    screen.addstr(1, 30, "ncPirate v0.1", curses.A_STANDOUT)
+    screen.refresh()
+
+def draw_list( pos ):
+    screen.addstr( 3, 2, "Torrent Name:", curses.A_BOLD )
+    screen.addstr( 3, width - 20, "SEEDS", curses.A_BOLD)
+    
+    for item_index in range(10):
+        if pos == item_index:
+            text_mod = curses.A_STANDOUT 
+        else:
+            text_mod = curses.A_NORMAL
+        screen.addstr(5 + item_index, 2, "{0}. {1}".format(item_index + 1, results[item_index][1]), text_mod)
+        screen.addstr(5 + item_index, width - 20, "{0}".format(results[item_index][0]))
+    screen.refresh()
+
+def resize_screen():
+    height, width = screen.getmaxyx()
+    screen.clear()
+    curses.resizeterm( height, width )
+    stdscr.refresh()
+
+if __name__ == '__main__':
+   try:
+       #initialize Curses engine
+       stdscr = curses.initscr()
+       curses.noecho()
+       curses.cbreak()
+
+       #Keypad mode allows arrow key input
+       stdscr.keypad(1)
+       main(stdscr) #Enters main loop
+       # Clean up after loop
+       stdscr.keypad(0)
+       curses.echo()
+       curses.nocbreak()
+       curses.endwin()
+   except:
+       #Error handling, restores terminal to normal.
+       stdscr.keypad(0)
+       curses.echo()
+       curses.nocbreak()
+       curses.endwin()
+       traceback.print_exc()
+
